@@ -1,20 +1,17 @@
 const INPUT1_DATA: &'static [u8] = include_bytes!("../data/input1");
 
-fn count_elf_calories(data: &[u8]) -> Option<(usize, usize)> {
+fn count_elf_calories(data: &[u8]) -> Vec<(usize, usize)> {
     let data = std::str::from_utf8(data).unwrap();
 
-    // (id, count)
-    let mut highest: Option<(usize, usize)> = None;
+    let mut all_elves = vec![];
 
     // The elfs are one-indexed
-    let mut current_elf: usize = 1;
-    let mut current_count: usize = 0;
+    let mut current_elf = 1;
+    let mut current_count = 0;
 
     for line in data.lines() {
         if line.trim().is_empty() {
-            if highest.is_none() || current_count > highest.unwrap().1 {
-                highest = Some((current_elf, current_count));
-            }
+            all_elves.push((current_elf, current_count));
 
             current_count = 0;
             current_elf += 1;
@@ -25,16 +22,20 @@ fn count_elf_calories(data: &[u8]) -> Option<(usize, usize)> {
         current_count += line.trim().parse::<usize>().unwrap();
     }
 
-    if current_count > highest.unwrap().1 {
-        highest = Some((current_elf, current_count));
-    }
+    all_elves.push((current_elf, current_count));
+    all_elves.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
-    highest
+    all_elves
 }
 
 fn main() {
-    let result = count_elf_calories(INPUT1_DATA);
-    println!("{:?}", result);
+    let all_elves = count_elf_calories(INPUT1_DATA);
+
+    let result1: Option<&(usize, usize)> = all_elves.iter().rev().last();
+    println!("{:?}", result1);
+
+    let result2: Vec<&(usize, usize)> = all_elves.iter().rev().take(3).collect();
+    println!("{:?}", result2.iter().map(|(_, count)| count).sum::<usize>());
 }
 
 #[cfg(test)]
@@ -45,6 +46,11 @@ mod tests {
 
     #[test]
     fn test_sample_input() {
-        assert_eq!(count_elf_calories(SAMPLE_INPUT), Some((3, 24000)));
+        let elf_counts = count_elf_calories(SAMPLE_INPUT);
+
+        assert_eq!(
+            elf_counts,
+            vec![(2, 4000), (1, 6000), (5, 10000), (3, 11000), (4, 24000)]
+        );
     }
 }
