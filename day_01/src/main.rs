@@ -6,21 +6,23 @@ fn count_elf_calories(data: &[u8]) -> Option<(usize, usize)> {
     // (id, count)
     let mut highest: Option<(usize, usize)> = None;
 
-    let mut current_elf: usize = 0;
+    // The elfs are one-indexed
+    let mut current_elf: usize = 1;
     let mut current_count: usize = 0;
 
     for line in data.lines() {
         if line.trim().is_empty() {
             if highest.is_none() || current_count > highest.unwrap().1 {
                 highest = Some((current_elf, current_count));
-                current_count = 0;
             }
 
+            current_count = 0;
             current_elf += 1;
+
             continue;
         }
 
-        current_count += line.parse::<usize>().unwrap();
+        current_count += line.trim().parse::<usize>().unwrap();
     }
 
     if current_count > highest.unwrap().1 {
