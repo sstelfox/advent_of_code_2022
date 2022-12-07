@@ -1,4 +1,4 @@
-const INPUT1_DATA: &'static [u8] = include_bytes!("../data/input1");
+const INPUT_DATA: &'static [u8] = include_bytes!("../data/input");
 
 fn count_elf_calories(data: &[u8]) -> Vec<(usize, usize)> {
     let data = std::str::from_utf8(data).unwrap();
@@ -29,7 +29,7 @@ fn count_elf_calories(data: &[u8]) -> Vec<(usize, usize)> {
 }
 
 fn main() {
-    let all_elves = count_elf_calories(INPUT1_DATA);
+    let all_elves = count_elf_calories(INPUT_DATA);
 
     let result1: Option<&(usize, usize)> = all_elves.iter().rev().last();
     println!("{:?}", result1);
