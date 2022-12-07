@@ -1,5 +1,6 @@
 const INPUT_DATA: &'static [u8] = include_bytes!("../data/input");
 
+#[derive(Debug, Eq, PartialEq)]
 enum RoundResult {
     Win,
     Tie,
@@ -28,9 +29,27 @@ impl RoundResult {
     }
 }
 
-fn parse_line(line: &str) -> (Throw, Throw) {
+impl From<&str> for RoundResult {
+    fn from(value: &str) -> RoundResult {
+        use RoundResult::*;
+
+        match value {
+            "X" => Lose,
+            "Y" => Tie,
+            "Z" => Win,
+            _ => { panic!("invalid round result value"); }
+        }
+    }
+}
+
+fn parse_both_as_throws(line: &str) -> (Throw, Throw) {
     let parts: Vec<&str> = line.split(" ").collect();
     (Throw::from(parts[0]), Throw::from(parts[1]))
+}
+
+fn parse_throw_results(line: &str) -> (Throw, RoundResult) {
+    let parts: Vec<&str> = line.split(" ").collect();
+    (Throw::from(parts[0]), RoundResult::from(parts[1]))
 }
 
 fn score_round(opponent: &Throw, our_strategy: &Throw) -> (usize, usize) {
@@ -41,7 +60,7 @@ fn score_round(opponent: &Throw, our_strategy: &Throw) -> (usize, usize) {
         (a, b) if a == b => Tie,
         (Rock, Scissors) => Win,
         (Paper, Rock) => Win,
-        (Scissors, Rock) => Win,
+        (Scissors, Paper) => Win,
         _ => Lose,
     };
 
@@ -83,17 +102,17 @@ impl From<&str> for Throw {
     }
 }
 
-fn process_data(data: &[u8]) -> Vec<(usize, usize)> {
+fn process_first_data(data: &[u8]) -> Vec<(usize, usize)> {
     let data = std::str::from_utf8(data).unwrap();
 
     data.lines()
-        .map(|l| parse_line(l))
+        .map(|l| parse_both_as_throws(l))
         .map(|(other, me)| score_round(&other, &me))
         .collect()
 }
 
 fn main() {
-    let results = process_data(INPUT_DATA);
+    let results = process_first_data(INPUT_DATA);
     let our_total_score: usize = results.iter().map(|(ours, _)| ours).sum();
     println!("Our total: {}", our_total_score);
 }
@@ -105,11 +124,11 @@ mod tests {
     const SAMPLE_DATA: &'static [u8] = include_bytes!("../data/sample");
 
     #[test]
-    fn test_line_parser() {
+    fn test_throw_throw_line_parser() {
         use Throw::*;
 
         let data = std::str::from_utf8(SAMPLE_DATA).unwrap();
-        let throws: Vec<(Throw, Throw)> = data.lines().map(|l| parse_line(l)).collect();
+        let throws: Vec<(Throw, Throw)> = data.lines().map(|l| parse_both_as_throws(l)).collect();
 
         assert_eq!(
             throws,
@@ -118,8 +137,22 @@ mod tests {
     }
 
     #[test]
-    fn test_sample_input() {
-        let results = process_data(SAMPLE_DATA);
+    fn test_throw_result_line_parser() {
+        use Throw::*;
+        use RoundResult::*;
+
+        let data = std::str::from_utf8(SAMPLE_DATA).unwrap();
+        let throws: Vec<(Throw, RoundResult)> = data.lines().map(|l| parse_throw_results(l)).collect();
+
+        assert_eq!(
+            throws,
+            vec![(Rock, Tie), (Paper, Lose), (Scissors, Win)]
+        );
+    }
+
+    #[test]
+    fn test_sample_input_first() {
+        let results = process_first_data(SAMPLE_DATA);
         let our_total_score: usize = results.iter().map(|(ours, _)| ours).sum();
         assert_eq!(our_total_score, 15);
     }
