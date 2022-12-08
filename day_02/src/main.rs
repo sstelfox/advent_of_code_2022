@@ -1,6 +1,6 @@
 const INPUT_DATA: &'static [u8] = include_bytes!("../data/input");
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RoundResult {
     Win,
     Tie,
@@ -52,15 +52,12 @@ fn parse_throw_results(line: &str) -> (Throw, RoundResult) {
     (Throw::from(parts[0]), RoundResult::from(parts[1]))
 }
 
-fn score_round(opponent: &Throw, our_strategy: &Throw) -> (usize, usize) {
+fn score_round(opponent: Throw, our_strategy: Throw) -> (usize, usize) {
     use RoundResult::*;
-    use Throw::*;
 
     let our_result = match (our_strategy, opponent) {
         (a, b) if a == b => Tie,
-        (Rock, Scissors) => Win,
-        (Paper, Rock) => Win,
-        (Scissors, Paper) => Win,
+        (a, b) if a.looses_to() == b => Win,
         _ => Lose,
     };
 
@@ -70,7 +67,17 @@ fn score_round(opponent: &Throw, our_strategy: &Throw) -> (usize, usize) {
     )
 }
 
-#[derive(Debug, Eq, PartialEq)]
+fn choose_target_hand(throw: Throw, target_result: RoundResult) -> Throw {
+    use RoundResult::*;
+
+    match target_result {
+        Tie => throw,
+        Win => throw.looses_to(),
+        Lose => throw.wins_against(),
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Throw {
     Rock,
     Paper,
@@ -78,6 +85,26 @@ enum Throw {
 }
 
 impl Throw {
+    fn looses_to(&self) -> Throw {
+        use Throw::*;
+
+        match self {
+            Rock => Paper,
+            Paper => Scissors,
+            Scissors => Rock,
+        }
+    }
+
+    fn wins_against(&self) -> Throw {
+        use Throw::*;
+
+        match self {
+            Rock => Scissors,
+            Paper => Rock,
+            Scissors => Paper,
+        }
+    }
+
     fn point_value(&self) -> usize {
         use Throw::*;
 
@@ -107,12 +134,26 @@ fn process_first_data(data: &[u8]) -> Vec<(usize, usize)> {
 
     data.lines()
         .map(|l| parse_both_as_throws(l))
-        .map(|(other, me)| score_round(&other, &me))
+        .map(|(other, me)| score_round(other, me))
+        .collect()
+}
+
+fn process_second_data(data: &[u8]) -> Vec<(usize, usize)> {
+    let data = std::str::from_utf8(data).unwrap();
+
+    data.lines()
+        .map(|l| parse_throw_results(l))
+        .map(|(other, result)| (other, choose_target_hand(other, result)))
+        .map(|(other, me)| score_round(other, me))
         .collect()
 }
 
 fn main() {
     let results = process_first_data(INPUT_DATA);
+    let our_total_score: usize = results.iter().map(|(ours, _)| ours).sum();
+    println!("Our total: {}", our_total_score);
+
+    let results = process_second_data(INPUT_DATA);
     let our_total_score: usize = results.iter().map(|(ours, _)| ours).sum();
     println!("Our total: {}", our_total_score);
 }
@@ -151,9 +192,26 @@ mod tests {
     }
 
     #[test]
+    fn test_target_hand_selection() {
+        use Throw::*;
+        use RoundResult::*;
+
+        assert_eq!(choose_target_hand(Rock, Tie), Rock);
+        assert_eq!(choose_target_hand(Paper, Lose), Rock);
+        assert_eq!(choose_target_hand(Scissors, Win), Rock);
+    }
+
+    #[test]
     fn test_sample_input_first() {
         let results = process_first_data(SAMPLE_DATA);
         let our_total_score: usize = results.iter().map(|(ours, _)| ours).sum();
         assert_eq!(our_total_score, 15);
+    }
+
+    #[test]
+    fn test_sample_input_second() {
+        let results = process_second_data(SAMPLE_DATA);
+        let our_total_score: usize = results.iter().map(|(ours, _)| ours).sum();
+        assert_eq!(our_total_score, 12);
     }
 }
