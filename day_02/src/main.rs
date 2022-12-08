@@ -37,43 +37,10 @@ impl From<&str> for RoundResult {
             "X" => Lose,
             "Y" => Tie,
             "Z" => Win,
-            _ => { panic!("invalid round result value"); }
+            _ => {
+                panic!("invalid round result value");
+            }
         }
-    }
-}
-
-fn parse_both_as_throws(line: &str) -> (Throw, Throw) {
-    let parts: Vec<&str> = line.split(" ").collect();
-    (Throw::from(parts[0]), Throw::from(parts[1]))
-}
-
-fn parse_throw_results(line: &str) -> (Throw, RoundResult) {
-    let parts: Vec<&str> = line.split(" ").collect();
-    (Throw::from(parts[0]), RoundResult::from(parts[1]))
-}
-
-fn score_round(opponent: Throw, our_strategy: Throw) -> (usize, usize) {
-    use RoundResult::*;
-
-    let our_result = match (our_strategy, opponent) {
-        (a, b) if a == b => Tie,
-        (a, b) if a.looses_to() == b => Win,
-        _ => Lose,
-    };
-
-    (
-        our_strategy.point_value() + our_result.point_value(),
-        opponent.point_value() + our_result.inverse().point_value(),
-    )
-}
-
-fn choose_target_hand(throw: Throw, target_result: RoundResult) -> Throw {
-    use RoundResult::*;
-
-    match target_result {
-        Tie => throw,
-        Win => throw.looses_to(),
-        Lose => throw.wins_against(),
     }
 }
 
@@ -95,16 +62,6 @@ impl Throw {
         }
     }
 
-    fn wins_against(&self) -> Throw {
-        use Throw::*;
-
-        match self {
-            Rock => Scissors,
-            Paper => Rock,
-            Scissors => Paper,
-        }
-    }
-
     fn point_value(&self) -> usize {
         use Throw::*;
 
@@ -112,6 +69,16 @@ impl Throw {
             Rock => 1,
             Paper => 2,
             Scissors => 3,
+        }
+    }
+
+    fn wins_against(&self) -> Throw {
+        use Throw::*;
+
+        match self {
+            Rock => Scissors,
+            Paper => Rock,
+            Scissors => Paper,
         }
     }
 }
@@ -127,6 +94,26 @@ impl From<&str> for Throw {
             }
         }
     }
+}
+
+fn choose_target_hand(throw: Throw, target_result: RoundResult) -> Throw {
+    use RoundResult::*;
+
+    match target_result {
+        Tie => throw,
+        Win => throw.looses_to(),
+        Lose => throw.wins_against(),
+    }
+}
+
+fn parse_both_as_throws(line: &str) -> (Throw, Throw) {
+    let parts: Vec<&str> = line.split(" ").collect();
+    (Throw::from(parts[0]), Throw::from(parts[1]))
+}
+
+fn parse_throw_results(line: &str) -> (Throw, RoundResult) {
+    let parts: Vec<&str> = line.split(" ").collect();
+    (Throw::from(parts[0]), RoundResult::from(parts[1]))
 }
 
 fn process_first_data(data: &[u8]) -> Vec<(usize, usize)> {
@@ -148,14 +135,29 @@ fn process_second_data(data: &[u8]) -> Vec<(usize, usize)> {
         .collect()
 }
 
+fn score_round(opponent: Throw, our_strategy: Throw) -> (usize, usize) {
+    use RoundResult::*;
+
+    let our_result = match (our_strategy, opponent) {
+        (a, b) if a == b => Tie,
+        (a, b) if a.looses_to() == b => Win,
+        _ => Lose,
+    };
+
+    (
+        our_strategy.point_value() + our_result.point_value(),
+        opponent.point_value() + our_result.inverse().point_value(),
+    )
+}
+
 fn main() {
     let results = process_first_data(INPUT_DATA);
     let our_total_score: usize = results.iter().map(|(ours, _)| ours).sum();
-    println!("Our total: {}", our_total_score);
+    println!("Our first total: {}", our_total_score);
 
     let results = process_second_data(INPUT_DATA);
     let our_total_score: usize = results.iter().map(|(ours, _)| ours).sum();
-    println!("Our total: {}", our_total_score);
+    println!("Our second total: {}", our_total_score);
 }
 
 #[cfg(test)]
@@ -179,22 +181,20 @@ mod tests {
 
     #[test]
     fn test_throw_result_line_parser() {
-        use Throw::*;
         use RoundResult::*;
+        use Throw::*;
 
         let data = std::str::from_utf8(SAMPLE_DATA).unwrap();
-        let throws: Vec<(Throw, RoundResult)> = data.lines().map(|l| parse_throw_results(l)).collect();
+        let throws: Vec<(Throw, RoundResult)> =
+            data.lines().map(|l| parse_throw_results(l)).collect();
 
-        assert_eq!(
-            throws,
-            vec![(Rock, Tie), (Paper, Lose), (Scissors, Win)]
-        );
+        assert_eq!(throws, vec![(Rock, Tie), (Paper, Lose), (Scissors, Win)]);
     }
 
     #[test]
     fn test_target_hand_selection() {
-        use Throw::*;
         use RoundResult::*;
+        use Throw::*;
 
         assert_eq!(choose_target_hand(Rock, Tie), Rock);
         assert_eq!(choose_target_hand(Paper, Lose), Rock);
