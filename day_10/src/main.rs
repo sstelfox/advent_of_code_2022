@@ -36,9 +36,12 @@ impl Cpu {
 
         while self.tick() {
             if ((self.program_counter + 20) % 40) == 0 {
+                println!("{:?}", self);
                 signal_strengths.push(self.signal_strength());
             }
         }
+
+        println!("final: {:?}", self);
 
         signal_strengths
     }
@@ -66,6 +69,19 @@ impl Cpu {
     }
 }
 
+impl std::fmt::Debug for Cpu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Cpu")
+            .field("instruction_counter", &self.instruction_counter)
+            .field("program_counter", &self.program_counter)
+            .field("register_x", &self.register_x)
+            .field("current_operation", &self.current_operation())
+            .field("pending_cycles", &self.pending_cycles)
+            .field("signal_strength", &self.signal_strength())
+            .finish()
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Operation {
     Noop,
@@ -77,7 +93,9 @@ impl Operation {
         use Operation::*;
 
         match self {
-            AddX(val) => { cpu.register_x += val; },
+            AddX(val) => {
+                cpu.register_x += val;
+            }
             _ => (),
         }
     }
@@ -100,7 +118,9 @@ impl From<&str> for Operation {
         match (instruction.get(0), instruction.get(1)) {
             (Some(&"noop"), None) => Noop,
             (Some(&"addx"), Some(val)) => AddX(val.parse().unwrap()),
-            _ => { panic!("{:?}", instruction); }
+            _ => {
+                panic!("{:?}", instruction);
+            }
         }
     }
 }
