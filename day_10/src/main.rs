@@ -1,3 +1,4 @@
+const INPUT_DATA: &'static [u8] = include_bytes!("../data/input");
 
 struct Cpu {
     instructions: Vec<Operation>,
@@ -14,10 +15,6 @@ impl Cpu {
         self.instructions.get(self.instruction_counter).copied()
     }
 
-    fn is_halted(&self) -> bool {
-        self.current_operation().is_none()
-    }
-
     fn new(instructions: Vec<Operation>) -> Self {
         Cpu {
             instructions,
@@ -28,6 +25,22 @@ impl Cpu {
 
             pending_cycles: None,
         }
+    }
+
+    fn signal_strength(&self) -> isize {
+        self.register_x * self.program_counter as isize
+    }
+
+    fn run_with_signal_strengths(&mut self) -> Vec<isize> {
+        let mut signal_strengths = vec![];
+
+        while self.tick() {
+            if ((self.program_counter + 20) % 40) == 0 {
+                signal_strengths.push(self.signal_strength());
+            }
+        }
+
+        signal_strengths
     }
 
     fn tick(&mut self) -> bool {
@@ -79,12 +92,41 @@ impl Operation {
     }
 }
 
+impl From<&str> for Operation {
+    fn from(value: &str) -> Operation {
+        use Operation::*;
+
+        let instruction: Vec<&str> = value.split_whitespace().take(2).collect();
+        match (instruction.get(0), instruction.get(1)) {
+            (Some(&"noop"), None) => Noop,
+            (Some(&"addx"), Some(val)) => AddX(val.parse().unwrap()),
+            _ => { panic!("{:?}", instruction); }
+        }
+    }
+}
+
+fn parse_program(data: &[u8]) -> Vec<Operation> {
+    let data = std::str::from_utf8(data).unwrap();
+    data.lines().map(|l| Operation::from(l)).collect()
+}
+
 fn main() {
+    let input_program = parse_program(INPUT_DATA);
+    let mut cpu = Cpu::new(input_program);
+
+    let signal_strengths = cpu.run_with_signal_strengths();
+    let signal_sum: isize = signal_strengths.iter().sum();
+
+    println!("{:?}", signal_sum);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const MIN_SAMPLE: &'static [u8] = "noop\naddx 3\naddx -5".as_bytes();
+
+    const SAMPLE_INPUT: &'static [u8] = include_bytes!("../data/sample");
 
     #[test]
     fn test_cpu_running() {
@@ -96,46 +138,62 @@ mod tests {
         assert_eq!(cpu.current_operation(), Some(Noop));
         assert_eq!(cpu.program_counter, 0);
         assert_eq!(cpu.register_x, 1);
-        assert!(!cpu.is_halted());
 
         // Check the state after the first cycle
         assert!(cpu.tick());
         assert_eq!(cpu.current_operation(), Some(AddX(3)));
         assert_eq!(cpu.program_counter, 1);
         assert_eq!(cpu.register_x, 1);
-        assert!(!cpu.is_halted());
 
         // Check the state after the second cycle
         assert!(cpu.tick());
         assert_eq!(cpu.current_operation(), Some(AddX(3)));
         assert_eq!(cpu.program_counter, 2);
         assert_eq!(cpu.register_x, 1);
-        assert!(!cpu.is_halted());
 
         // Third cycle
         assert!(cpu.tick());
         assert_eq!(cpu.current_operation(), Some(AddX(-5)));
         assert_eq!(cpu.program_counter, 3);
         assert_eq!(cpu.register_x, 4);
-        assert!(!cpu.is_halted());
 
         // Fourth cycle
         assert!(cpu.tick());
         assert_eq!(cpu.current_operation(), Some(AddX(-5)));
         assert_eq!(cpu.program_counter, 4);
         assert_eq!(cpu.register_x, 4);
-        assert!(!cpu.is_halted());
 
         // Fifth cycle
         assert!(cpu.tick());
         assert_eq!(cpu.current_operation(), None);
         assert_eq!(cpu.program_counter, 5);
         assert_eq!(cpu.register_x, -1);
-        assert!(cpu.is_halted());
 
         // All future ticks
         assert!(!cpu.tick());
         assert_eq!(cpu.program_counter, 5);
-        assert!(cpu.is_halted());
+    }
+
+    #[test]
+    fn test_full_sample_parsing() {
+        use Operation::*;
+
+        let program = parse_program(MIN_SAMPLE);
+        assert_eq!(vec![Noop, AddX(3), AddX(-5)], program);
+    }
+
+    #[test]
+    fn test_min_sample_program() {
+        use Operation::*;
+
+        let program = parse_program(SAMPLE_INPUT);
+        let mut cpu = Cpu::new(program);
+        let signal_strengths = cpu.run_with_signal_strengths();
+
+        assert_eq!(6, signal_strengths.len());
+        assert_eq!(vec![420, 1140, 1800, 2940, 2880, 3960], signal_strengths);
+
+        let signal_sum: isize = signal_strengths.iter().sum();
+        assert_eq!(13140, signal_sum);
     }
 }
