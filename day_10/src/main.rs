@@ -43,7 +43,10 @@ impl Cpu {
 
     fn in_sprite_window(&self) -> bool {
         let (min, max) = self.sprite_window();
-        let pixel_loc = self.current_pixel_index();
+
+        // We only look at the horizontal position to determine if we're in the
+        // sprite window
+        let pixel_loc = self.current_pixel_index() % DISPLAY_WIDTH;
 
         min <= pixel_loc && pixel_loc <= max
     }
@@ -78,7 +81,7 @@ impl Cpu {
 
     fn sprite_window(&self) -> (usize, usize) {
         let min = (self.register_x - 1).max(0) as usize;
-        let max = (self.register_x + 1).min(PIXEL_COUNT as isize - 1) as usize;
+        let max = (self.register_x + 1).min(DISPLAY_WIDTH as isize - 1) as usize;
 
         (min, max)
     }
@@ -276,8 +279,8 @@ mod tests {
         cpu.register_x = 0;
         assert_eq!((0, 1), cpu.sprite_window());
 
-        cpu.register_x = (PIXEL_COUNT - 1) as isize;
-        assert_eq!((PIXEL_COUNT - 2, PIXEL_COUNT - 1), cpu.sprite_window());
+        cpu.register_x = (DISPLAY_WIDTH - 1) as isize;
+        assert_eq!((38, 39), cpu.sprite_window());
     }
 
     #[test]
@@ -298,28 +301,21 @@ mod tests {
     fn test_in_sprite_window() {
         let mut cpu = Cpu::new(vec![]);
 
-        cpu.cycle_counter = 57;
+        cpu.cycle_counter = 24;
 
-        cpu.register_x = 54;
-        assert_eq!((53, 55), cpu.sprite_window());
-        assert_eq!(56, cpu.current_pixel_index());
+        cpu.register_x = 21;
         assert!(!cpu.in_sprite_window());
 
-        cpu.register_x = 55;
-        assert_eq!((54, 56), cpu.sprite_window());
-        assert_eq!(56, cpu.current_pixel_index());
+        cpu.register_x = 22;
         assert!(cpu.in_sprite_window());
 
-        cpu.register_x = 56;
-        assert_eq!((55, 57), cpu.sprite_window());
+        cpu.register_x = 23;
         assert!(cpu.in_sprite_window());
 
-        cpu.register_x = 57;
-        assert_eq!((56, 58), cpu.sprite_window());
+        cpu.register_x = 24;
         assert!(cpu.in_sprite_window());
 
-        cpu.register_x = 58;
-        assert_eq!((57, 59), cpu.sprite_window());
+        cpu.register_x = 25;
         assert!(!cpu.in_sprite_window());
     }
 
@@ -365,7 +361,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_sample_display_output() {
         let expected_display = "##..##..##..##..##..##..##..##..##..##..\n\
                                 ###...###...###...###...###...###...###.\n\
@@ -379,6 +374,7 @@ mod tests {
         let mut cpu = Cpu::new(program);
         cpu.run_with_signal_strengths();
 
+        assert_eq!(cpu.cycle_counter, 240);
         assert_eq!(expected_display, cpu.display_string());
     }
 }
