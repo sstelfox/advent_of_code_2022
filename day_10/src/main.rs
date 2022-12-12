@@ -7,6 +7,7 @@ struct Cpu {
     program_counter: usize,
     register_x: isize,
 
+    signal_strength: Option<isize>,
     pending_cycles: Option<usize>,
 }
 
@@ -23,12 +24,13 @@ impl Cpu {
             program_counter: 0,
             register_x: 1,
 
+            signal_strength: None,
             pending_cycles: None,
         }
     }
 
-    fn signal_strength(&self) -> isize {
-        self.register_x * self.program_counter as isize
+    fn update_signal_strength(&mut self) {
+        self.signal_strength = Some(self.register_x * self.program_counter as isize);
     }
 
     fn run_with_signal_strengths(&mut self) -> Vec<isize> {
@@ -36,12 +38,9 @@ impl Cpu {
 
         while self.tick() {
             if ((self.program_counter + 20) % 40) == 0 {
-                println!("{:?}", self);
-                signal_strengths.push(self.signal_strength());
+                signal_strengths.push(self.signal_strength.unwrap());
             }
         }
-
-        println!("final: {:?}", self);
 
         signal_strengths
     }
@@ -56,8 +55,11 @@ impl Cpu {
                 self.pending_cycles = Some(op.cycle_count() - 1);
             }
 
+            self.update_signal_strength();
+
             if self.pending_cycles == Some(0) {
                 self.pending_cycles = None;
+
                 op.apply(self);
                 self.instruction_counter += 1;
             }
@@ -77,7 +79,7 @@ impl std::fmt::Debug for Cpu {
             .field("register_x", &self.register_x)
             .field("current_operation", &self.current_operation())
             .field("pending_cycles", &self.pending_cycles)
-            .field("signal_strength", &self.signal_strength())
+            .field("signal_strength", &self.signal_strength)
             .finish()
     }
 }
@@ -204,8 +206,6 @@ mod tests {
 
     #[test]
     fn test_min_sample_program() {
-        use Operation::*;
-
         let program = parse_program(SAMPLE_INPUT);
         let mut cpu = Cpu::new(program);
         let signal_strengths = cpu.run_with_signal_strengths();
