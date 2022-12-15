@@ -19,6 +19,20 @@ struct SimulatedEnvironment {
 }
 
 impl SimulatedEnvironment {
+    fn count_resting_sand(&self) -> usize {
+        let mut count = 0;
+
+        for y in std::ops::RangeInclusive::new(self.aabb.0.y, self.aabb.1.y) {
+            for x in std::ops::RangeInclusive::new(self.aabb.0.x, self.aabb.1.x) {
+                if self.get_tile(x, y) == Tile::Sand(false) {
+                    count += 1;
+                }
+            }
+        }
+
+        count
+    }
+
     fn display_string(&self) -> String {
         let mut output: Vec<String> = vec![];
 
@@ -100,7 +114,11 @@ impl SimulatedEnvironment {
 
             if let Some((new_x, new_y)) = next_loc {
                 if !self.within_bounds(new_x, new_y) {
-                    // Sand left our active map, that's our completion status
+                    // Sand left our active map, that's our completion status, mark it the last
+                    // valid place we were at, clean up a bit and exit
+                    self.active_sand = None;
+                    self.set_tile(sand.x, sand.y, Tile::Exit);
+
                     return None;
                 }
 
@@ -140,6 +158,10 @@ impl SimulatedEnvironment {
                 None => { return false; },          // sand went out of bounds or was unable to spawn, the sim is done
             }
         }
+    }
+
+    fn tick_till_done(&mut self) {
+        while self.tick_one_sand() {}
     }
 
     fn within_bounds(&self, x: isize, y: isize) -> bool {
@@ -194,6 +216,7 @@ impl From<&str> for Point {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Tile {
     Empty,
+    Exit,
     Rock,
     Sand(bool),
     Spawner,
@@ -205,6 +228,7 @@ impl Tile {
 
         match self {
             Empty => '.',
+            Exit => '~',
             Rock => '#',
             Sand(active) => { if *active { 'A' } else { 'o' } },
             Spawner => '+',
@@ -242,10 +266,11 @@ fn parse_simulated_environment(data: &[u8]) -> SimulatedEnvironment {
 }
 
 fn main() {
-    let sim_env = parse_simulated_environment(INPUT_DATA);
+    let mut sim_env = parse_simulated_environment(INPUT_DATA);
+    sim_env.tick_till_done();
 
-    println!("AABB: (({}, {}), ({}, {}))", sim_env.aabb.0.x, sim_env.aabb.0.y, sim_env.aabb.1.x, sim_env.aabb.1.y);
     println!("{}", sim_env.display_string());
+    println!("final count: {}", sim_env.count_resting_sand());
 }
 
 #[cfg(test)]
@@ -333,5 +358,13 @@ mod tests {
                                 ......o.#.\n\
                                 #########.";
         assert_eq!(expected_display, sim_env.display_string());
+    }
+
+    #[test]
+    fn test_simulation_count() {
+        let mut sim_env = parse_simulated_environment(SAMPLE_INPUT);
+        sim_env.tick_till_done();
+
+        assert_eq!(sim_env.count_resting_sand(), 24);
     }
 }
