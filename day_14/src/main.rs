@@ -15,22 +15,14 @@ struct SimulatedEnvironment {
     active_sand: Option<Point>,
     spawner_location: Point,
 
+    path_tracing: bool,
+
     tiles: Vec<Tile>,
 }
 
 impl SimulatedEnvironment {
     fn count_resting_sand(&self) -> usize {
-        let mut count = 0;
-
-        for y in std::ops::RangeInclusive::new(self.aabb.0.y, self.aabb.1.y) {
-            for x in std::ops::RangeInclusive::new(self.aabb.0.x, self.aabb.1.x) {
-                if self.get_tile(x, y) == Tile::Sand(false) {
-                    count += 1;
-                }
-            }
-        }
-
-        count
+        self.tiles.iter().filter(|t| Tile::Sand(false) == **t).count()
     }
 
     fn display_string(&self) -> String {
@@ -79,6 +71,10 @@ impl SimulatedEnvironment {
         }
     }
 
+    fn enable_path_tracing(&mut self) {
+        self.path_tracing = true;
+    }
+
     fn get_tile(&self, x: isize, y: isize) -> Tile {
         self.tiles[x as usize + y as usize * SIMULATION_WIDTH]
     }
@@ -88,6 +84,8 @@ impl SimulatedEnvironment {
             aabb: (spawner_location, spawner_location),
             active_sand: None,
             spawner_location,
+
+            path_tracing: false,
 
             tiles: vec![Tile::default(); SIMULATION_WIDTH * SIMULATION_HEIGHT],
         };
@@ -110,21 +108,23 @@ impl SimulatedEnvironment {
         if let Some(sand) = self.active_sand {
             let next_loc = SEARCH_OFFSETS.iter()
                 .map(|(ox, oy)| (sand.x + ox, sand.y + oy))
-                .find(|(x, y)| { self.get_tile(*x, *y) == Tile::Empty });
+                .find(|(x, y)| { self.get_tile(*x, *y).is_empty() });
 
             if let Some((new_x, new_y)) = next_loc {
+                if self.path_tracing {
+                    self.set_tile(sand.x, sand.y, Tile::Path);
+                } else {
+                    self.set_tile(sand.x, sand.y, Tile::Empty);
+                }
+
                 if !self.within_bounds(new_x, new_y) {
                     // Sand left our active map, that's our completion status, mark it the last
                     // valid place we were at, clean up a bit and exit
                     self.active_sand = None;
-                    self.set_tile(sand.x, sand.y, Tile::Exit);
-
                     return None;
                 }
 
-                self.set_tile(sand.x, sand.y, Tile::Empty);
                 self.set_tile(new_x, new_y, Tile::Sand(true));
-
                 self.active_sand = Some(Point::new(new_x, new_y));
 
                 Some(true)
@@ -138,7 +138,7 @@ impl SimulatedEnvironment {
         } else {
             let (sx, sy) = (self.spawner_location.x, self.spawner_location.y + 1);
 
-            if self.get_tile(sx, sy) != Tile::Empty {
+            if !self.get_tile(sx, sy).is_empty() {
                 // We can't spawn a new moving sand tile at the target location exit early
                 println!("stopped since we're unable to spawn new sand");
                 return None;
@@ -216,7 +216,7 @@ impl From<&str> for Point {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Tile {
     Empty,
-    Exit,
+    Path,
     Rock,
     Sand(bool),
     Spawner,
@@ -228,10 +228,20 @@ impl Tile {
 
         match self {
             Empty => '.',
-            Exit => '~',
+            Path => '~',
             Rock => '#',
             Sand(active) => { if *active { 'A' } else { 'o' } },
             Spawner => '+',
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        use Tile::*;
+
+        match self {
+            Empty => true,
+            Path => true,
+            _ => false,
         }
     }
 }
@@ -267,6 +277,8 @@ fn parse_simulated_environment(data: &[u8]) -> SimulatedEnvironment {
 
 fn main() {
     let mut sim_env = parse_simulated_environment(INPUT_DATA);
+
+    sim_env.enable_path_tracing();
     sim_env.tick_till_done();
 
     println!("{}", sim_env.display_string());
@@ -430,7 +442,7 @@ mod tests {
                                 ...o#ooo#.\n\
                                 ..###ooo#.\n\
                                 ....oooo#.\n\
-                                ~o.ooooo#.\n\
+                                .o.ooooo#.\n\
                                 #########.";
         assert_eq!(expected_display, sim_env.display_string());
     }
