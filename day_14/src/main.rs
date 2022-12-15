@@ -372,7 +372,7 @@ mod tests {
                                 #########.";
         assert_eq!(expected_display, sim_env.display_string());
 
-        for _ in 0..3 {
+        for _ in 3..=5 {
             assert!(sim_env.tick_one_sand());
         }
 
@@ -385,6 +385,52 @@ mod tests {
                                 ..###...#.\n\
                                 ......o.#.\n\
                                 ....oooo#.\n\
+                                #########.";
+        assert_eq!(expected_display, sim_env.display_string());
+
+        for _ in 6..=22 {
+            assert!(sim_env.tick_one_sand());
+        }
+
+        let expected_display = "......+...\n\
+                                ..........\n\
+                                ......o...\n\
+                                .....ooo..\n\
+                                ....#ooo##\n\
+                                ....#ooo#.\n\
+                                ..###ooo#.\n\
+                                ....oooo#.\n\
+                                ...ooooo#.\n\
+                                #########.";
+        assert_eq!(expected_display, sim_env.display_string());
+
+        for _ in 23..=24 {
+            assert!(sim_env.tick_one_sand());
+        }
+
+        let expected_display = "......+...\n\
+                                ..........\n\
+                                ......o...\n\
+                                .....ooo..\n\
+                                ....#ooo##\n\
+                                ...o#ooo#.\n\
+                                ..###ooo#.\n\
+                                ....oooo#.\n\
+                                .o.ooooo#.\n\
+                                #########.";
+        assert_eq!(expected_display, sim_env.display_string());
+
+        assert!(!sim_env.tick_one_sand());
+
+        let expected_display = "......+...\n\
+                                ..........\n\
+                                ......o...\n\
+                                .....ooo..\n\
+                                ....#ooo##\n\
+                                ...o#ooo#.\n\
+                                ..###ooo#.\n\
+                                ....oooo#.\n\
+                                ~o.ooooo#.\n\
                                 #########.";
         assert_eq!(expected_display, sim_env.display_string());
     }
