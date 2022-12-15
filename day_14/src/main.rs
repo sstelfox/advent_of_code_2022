@@ -6,6 +6,10 @@ const SIMULATION_WIDTH: usize = 1024;
 const SPAWNER_X: isize = 500;
 const SPAWNER_Y: isize = 0;
 
+const SEARCH_OFFSETS: [(isize, isize); 3] = [
+    (0, 1), (-1, 1), (1, 1),
+];
+
 struct SimulatedEnvironment {
     aabb: (Point, Point),
     active_sand: Option<Point>,
@@ -86,6 +90,61 @@ impl SimulatedEnvironment {
         }
 
         self.tiles[x as usize + y as usize * SIMULATION_WIDTH] = tile;
+    }
+
+    fn tick(&mut self) -> Option<bool> {
+        if let Some(sand) = self.active_sand {
+            let next_loc = SEARCH_OFFSETS.iter()
+                .map(|(ox, oy)| (sand.x + ox, sand.y + oy))
+                .find(|(x, y)| { self.get_tile(*x, *y) == Tile::Empty });
+
+            if let Some((new_x, new_y)) = next_loc {
+                if !self.within_bounds(new_x, new_y) {
+                    // Sand left our active map, that's our completion status
+                    return None;
+                }
+
+                self.set_tile(sand.x, sand.y, Tile::Empty);
+                self.set_tile(new_x, new_y, Tile::Sand(true));
+
+                self.active_sand = Some(Point::new(new_x, new_y));
+
+                Some(true)
+            } else {
+                // Sand didn't move, it'll stay here
+                self.active_sand = None;
+                self.set_tile(sand.x, sand.y, Tile::Sand(false));
+
+                Some(false)
+            }
+        } else {
+            let (sx, sy) = (self.spawner_location.x, self.spawner_location.y + 1);
+
+            if self.get_tile(sx, sy) != Tile::Empty {
+                // We can't spawn a new moving sand tile at the target location exit early
+                println!("stopped since we're unable to spawn new sand");
+                return None;
+            }
+
+            self.active_sand = Some(Point::new(sx, sy));
+            self.set_tile(sx, sy, Tile::Sand(true));
+            Some(true)
+        }
+    }
+
+    fn tick_one_sand(&mut self) -> bool {
+        loop {
+            match self.tick() {
+                Some(true) => (),                   // sand moved, keep ticking
+                Some(false) => { return true; },    // sand didn't move but found a resting place, this method is done
+                None => { return false; },          // sand went out of bounds or was unable to spawn, the sim is done
+            }
+        }
+    }
+
+    fn within_bounds(&self, x: isize, y: isize) -> bool {
+        x >= self.aabb.0.x && x <= self.aabb.1.x &&
+            y >= self.aabb.0.y && y <= self.aabb.1.y
     }
 }
 
@@ -217,5 +276,62 @@ mod tests {
     #[test]
     fn test_simulation_parsing() {
         let sim_env = parse_simulated_environment(SAMPLE_INPUT);
+
+        let expected_display = "......+...\n\
+                                ..........\n\
+                                ..........\n\
+                                ..........\n\
+                                ....#...##\n\
+                                ....#...#.\n\
+                                ..###...#.\n\
+                                ........#.\n\
+                                ........#.\n\
+                                #########.";
+
+        assert_eq!(expected_display, sim_env.display_string());
+    }
+
+    #[test]
+    fn test_simulation_ticks() {
+        let mut sim_env = parse_simulated_environment(SAMPLE_INPUT);
+
+        assert_eq!(sim_env.tick(), Some(true));
+        let expected_display = "......+...\n\
+                                ......A...\n\
+                                ..........\n\
+                                ..........\n\
+                                ....#...##\n\
+                                ....#...#.\n\
+                                ..###...#.\n\
+                                ........#.\n\
+                                ........#.\n\
+                                #########.";
+        assert_eq!(expected_display, sim_env.display_string());
+
+        assert_eq!(sim_env.tick(), Some(true));
+        let expected_display = "......+...\n\
+                                ..........\n\
+                                ......A...\n\
+                                ..........\n\
+                                ....#...##\n\
+                                ....#...#.\n\
+                                ..###...#.\n\
+                                ........#.\n\
+                                ........#.\n\
+                                #########.";
+        assert_eq!(expected_display, sim_env.display_string());
+
+        assert!(sim_env.tick_one_sand());
+        let expected_display = "......+...\n\
+                                ..........\n\
+                                ..........\n\
+                                ..........\n\
+                                ....#...##\n\
+                                ....#...#.\n\
+                                ..###...#.\n\
+                                ........#.\n\
+                                ......o.#.\n\
+                                #########.";
+        assert_eq!(expected_display, sim_env.display_string());
     }
 }
