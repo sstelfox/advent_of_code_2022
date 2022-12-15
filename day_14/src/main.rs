@@ -358,6 +358,35 @@ mod tests {
                                 ......o.#.\n\
                                 #########.";
         assert_eq!(expected_display, sim_env.display_string());
+
+        assert!(sim_env.tick_one_sand());
+        let expected_display = "......+...\n\
+                                ..........\n\
+                                ..........\n\
+                                ..........\n\
+                                ....#...##\n\
+                                ....#...#.\n\
+                                ..###...#.\n\
+                                ........#.\n\
+                                .....oo.#.\n\
+                                #########.";
+        assert_eq!(expected_display, sim_env.display_string());
+
+        for _ in 0..3 {
+            assert!(sim_env.tick_one_sand());
+        }
+
+        let expected_display = "......+...\n\
+                                ..........\n\
+                                ..........\n\
+                                ..........\n\
+                                ....#...##\n\
+                                ....#...#.\n\
+                                ..###...#.\n\
+                                ......o.#.\n\
+                                ....oooo#.\n\
+                                #########.";
+        assert_eq!(expected_display, sim_env.display_string());
     }
 
     #[test]
