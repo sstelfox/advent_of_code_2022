@@ -15,12 +15,18 @@ struct SimulatedEnvironment {
     active_sand: Option<Point>,
     spawner_location: Point,
 
+    has_floor: bool,
     path_tracing: bool,
 
     tiles: Vec<Tile>,
 }
 
 impl SimulatedEnvironment {
+    fn add_floor(&mut self) {
+        self.has_floor = true;
+        self.aabb.1.y += 2;
+    }
+
     fn count_resting_sand(&self) -> usize {
         self.tiles.iter().filter(|t| Tile::Sand(false) == **t).count()
     }
@@ -68,6 +74,14 @@ impl SimulatedEnvironment {
         }
     }
 
+    fn update_aabb(&mut self, x: isize, y: isize) {
+        self.aabb.0.x = x.min(self.aabb.0.x);
+        self.aabb.1.x = x.max(self.aabb.1.x);
+
+        self.aabb.0.y = y.min(self.aabb.0.y);
+        self.aabb.1.y = y.max(self.aabb.1.y);
+    }
+
     fn enable_path_tracing(&mut self) {
         self.path_tracing = true;
     }
@@ -82,6 +96,7 @@ impl SimulatedEnvironment {
             active_sand: None,
             spawner_location,
 
+            has_floor: false,
             path_tracing: false,
 
             tiles: vec![Tile::default(); SIMULATION_WIDTH * SIMULATION_HEIGHT],
@@ -93,7 +108,7 @@ impl SimulatedEnvironment {
     }
 
     fn set_tile(&mut self, x: isize, y: isize, tile: Tile) {
-        if self.spawner_location.x == x && self.spawner_location.y == y && tile != Tile::Spawner{
+        if self.spawner_location.x == x && self.spawner_location.y == y && tile != Tile::Spawner {
             println!("attempted overwriting of the spawner location...");
             return;
         }
@@ -143,6 +158,7 @@ impl SimulatedEnvironment {
 
             self.active_sand = Some(Point::new(sx, sy));
             self.set_tile(sx, sy, Tile::Sand(true));
+
             Some(true)
         }
     }
@@ -278,8 +294,16 @@ fn main() {
     sim_env.enable_path_tracing();
     sim_env.tick_till_done();
 
+    println!("final count day 1: {}", sim_env.count_resting_sand());
+
+    let mut sim_env = parse_simulated_environment(INPUT_DATA);
+
+    sim_env.enable_path_tracing();
+    sim_env.add_floor();
+    sim_env.tick_till_done();
+
     println!("{}", sim_env.display_string());
-    println!("final count: {}", sim_env.count_resting_sand());
+    println!("final count day 2: {}", sim_env.count_resting_sand());
 }
 
 #[cfg(test)]
@@ -448,7 +472,16 @@ mod tests {
     fn test_simulation_count() {
         let mut sim_env = parse_simulated_environment(SAMPLE_INPUT);
         sim_env.tick_till_done();
-
         assert_eq!(sim_env.count_resting_sand(), 24);
+    }
+
+    #[test]
+    fn test_day_2_floor_simulation() {
+        let mut sim_env = parse_simulated_environment(SAMPLE_INPUT);
+
+        sim_env.add_floor();
+        sim_env.tick_till_done();
+
+        assert_eq!(sim_env.count_resting_sand(), 93);
     }
 }
