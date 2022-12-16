@@ -69,11 +69,11 @@ impl SimulatedEnvironment {
             line.left.y.max(line.right.y)
         );
 
+        self.update_aabb(min_x, min_y);
+        self.update_aabb(max_x, max_y);
+
         for y in std::ops::RangeInclusive::new(min_y, max_y) {
             for x in std::ops::RangeInclusive::new(min_x, max_x) {
-                self.update_aabb(min_x, min_y);
-                self.update_aabb(max_x, max_y);
-
                 self.set_tile(x, y, Tile::Rock);
             }
         }
@@ -120,6 +120,10 @@ impl SimulatedEnvironment {
                 .find(|(x, y)| { self.get_tile(*x, *y).is_empty() });
 
             if let Some((new_x, new_y)) = next_loc {
+                if self.has_floor {
+                    self.update_aabb(new_x, new_y);
+                }
+
                 let new_blank_tile = if self.path_tracing {
                     Tile::Path
                 } else {
@@ -305,8 +309,8 @@ fn main() {
 
     let mut sim_env = parse_simulated_environment(INPUT_DATA);
 
-    sim_env.enable_path_tracing();
     sim_env.add_floor();
+    sim_env.enable_path_tracing();
     sim_env.tick_till_done();
 
     println!("{}", sim_env.display_string());
