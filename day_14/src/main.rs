@@ -31,7 +31,6 @@ impl SimulatedEnvironment {
         for x in (std::ops::Range { start: 0, end: SIMULATION_WIDTH }) {
             self.set_tile(x as isize, floor_height, Tile::Rock);
         }
-
     }
 
     fn count_resting_sand(&self) -> usize {
@@ -151,18 +150,21 @@ impl SimulatedEnvironment {
                 Some(false)
             }
         } else {
-            let (sx, sy) = (self.spawner_location.x, self.spawner_location.y + 1);
+            let next_loc = SEARCH_OFFSETS.iter()
+                .map(|(ox, oy)| (self.spawner_location.x + ox, self.spawner_location.y + oy))
+                .find(|(x, y)| { self.get_tile(*x, *y).is_empty() });
 
-            if !self.get_tile(sx, sy).is_empty() {
+            if let Some((sx, sy)) = next_loc {
+                self.active_sand = Some(Point::new(sx, sy));
+                self.set_tile(sx, sy, Tile::Sand(true));
+
+                Some(true)
+            } else {
                 // We can't spawn a new moving sand tile at the target location exit early
                 println!("stopped since we're unable to spawn new sand");
-                return None;
+
+                None
             }
-
-            self.active_sand = Some(Point::new(sx, sy));
-            self.set_tile(sx, sy, Tile::Sand(true));
-
-            Some(true)
         }
     }
 
