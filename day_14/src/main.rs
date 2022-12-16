@@ -42,32 +42,29 @@ impl SimulatedEnvironment {
     }
 
     fn draw_line_segment(&mut self, line: LineSegment) {
-        if line.horizontal() {
-            let (min_x, max_x) = (
-                line.left.x.min(line.right.x),
-                line.left.x.max(line.right.x)
-            );
-
-            self.aabb.0.x = min_x.min(self.aabb.0.x);
-            self.aabb.1.x = max_x.max(self.aabb.1.x);
-
-            for x in std::ops::RangeInclusive::new(min_x, max_x) {
-                self.set_tile(x, line.left.y, Tile::Rock);
-            }
-        } else if line.vertical() {
-            let (min_y, max_y) = (
-                line.left.y.min(line.right.y),
-                line.left.y.max(line.right.y)
-            );
-
-            self.aabb.0.y = min_y.min(self.aabb.0.y);
-            self.aabb.1.y = max_y.max(self.aabb.1.y);
-
-            for y in std::ops::RangeInclusive::new(min_y, max_y) {
-                self.set_tile(line.left.x, y, Tile::Rock);
-            }
-        } else {
+        if !(line.horizontal() || line.vertical()) {
             panic!("does not support diagonal lines: {:?}", line);
+        }
+
+        let (min_x, max_x) = (
+            line.left.x.min(line.right.x),
+            line.left.x.max(line.right.x)
+        );
+
+        let (min_y, max_y) = (
+            line.left.y.min(line.right.y),
+            line.left.y.max(line.right.y)
+        );
+
+        for y in std::ops::RangeInclusive::new(min_y, max_y) {
+            for x in std::ops::RangeInclusive::new(min_x, max_x) {
+                self.aabb.0.x = min_x.min(self.aabb.0.x);
+                self.aabb.0.y = min_y.min(self.aabb.0.y);
+                self.aabb.1.x = max_x.max(self.aabb.1.x);
+                self.aabb.1.y = max_y.max(self.aabb.1.y);
+
+                self.set_tile(x, y, Tile::Rock);
+            }
         }
     }
 
