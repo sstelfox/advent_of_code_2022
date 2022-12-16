@@ -24,7 +24,14 @@ struct SimulatedEnvironment {
 impl SimulatedEnvironment {
     fn add_floor(&mut self) {
         self.has_floor = true;
-        self.aabb.1.y += 2;
+
+        let floor_height = self.aabb.1.y + 2;
+        self.aabb.1.y = floor_height;
+
+        for x in (std::ops::Range { start: 0, end: SIMULATION_WIDTH }) {
+            self.set_tile(x as isize, floor_height, Tile::Rock);
+        }
+
     }
 
     fn count_resting_sand(&self) -> usize {
@@ -72,14 +79,6 @@ impl SimulatedEnvironment {
         }
     }
 
-    fn update_aabb(&mut self, x: isize, y: isize) {
-        self.aabb.0.x = x.min(self.aabb.0.x);
-        self.aabb.1.x = x.max(self.aabb.1.x);
-
-        self.aabb.0.y = y.min(self.aabb.0.y);
-        self.aabb.1.y = y.max(self.aabb.1.y);
-    }
-
     fn enable_path_tracing(&mut self) {
         self.path_tracing = true;
     }
@@ -121,11 +120,13 @@ impl SimulatedEnvironment {
                 .find(|(x, y)| { self.get_tile(*x, *y).is_empty() });
 
             if let Some((new_x, new_y)) = next_loc {
-                if self.path_tracing {
-                    self.set_tile(sand.x, sand.y, Tile::Path);
+                let new_blank_tile = if self.path_tracing {
+                    Tile::Path
                 } else {
-                    self.set_tile(sand.x, sand.y, Tile::Empty);
-                }
+                    Tile::Empty
+                };
+
+                self.set_tile(sand.x, sand.y, new_blank_tile);
 
                 if !self.within_bounds(new_x, new_y) {
                     // Sand left our active map, that's our completion status, mark it the last
@@ -173,6 +174,14 @@ impl SimulatedEnvironment {
 
     fn tick_till_done(&mut self) {
         while self.tick_one_sand() {}
+    }
+
+    fn update_aabb(&mut self, x: isize, y: isize) {
+        self.aabb.0.x = x.min(self.aabb.0.x);
+        self.aabb.1.x = x.max(self.aabb.1.x);
+
+        self.aabb.0.y = y.min(self.aabb.0.y);
+        self.aabb.1.y = y.max(self.aabb.1.y);
     }
 
     fn within_bounds(&self, x: isize, y: isize) -> bool {
