@@ -9,146 +9,57 @@ lazy_static! {
 
 #[derive(Debug)]
 struct Environment {
-    position_offsets: (isize, isize),
-    size: (usize, usize),
-
-    tiles: Vec<Tile>,
+    sensors: Vec<Sensor>,
 }
 
 impl Environment {
-    fn add_location(&mut self, sensor: &Point, beacon: &Point) {
-        let sensor = Point::new(sensor.x - self.position_offsets.0, sensor.y - self.position_offsets.1);
-        self.set_tile(sensor.x as usize, sensor.y as usize, Tile::Sensor);
-
-        let beacon = Point::new(beacon.x - self.position_offsets.0, beacon.y - self.position_offsets.1);
-        self.set_tile(beacon.x as usize, beacon.y as usize, Tile::Beacon);
-
-        let _manhattan_distance = (sensor.x - beacon.x).abs() + (sensor.y - beacon.y).abs();
-
-        self.tiles[0] = Tile::Unknown;
+    fn new(sensors: Vec<Sensor>) -> Environment {
+        Self { sensors }
     }
+}
 
-    fn display_string(&self) -> String {
-        let mut output: Vec<String> = vec![];
+fn abs_distance(left: isize, right: isize) -> isize {
+    (left - right).abs()
+}
 
-        for y in std::ops::RangeInclusive::new(0, self.size.1) {
-            let mut line_chars = vec![];
+#[derive(Debug, Eq, PartialEq)]
+struct Sensor {
+    location: (isize, isize),
 
-            for x in std::ops::RangeInclusive::new(0, self.size.0) {
-                line_chars.push(self.get_tile(x, y).char());
-            }
+    detected_beacon: (isize, isize),
+    manhattan_distance: isize,
+}
 
-            output.push(line_chars.into_iter().collect());
-        }
+impl Sensor {
+    fn new(location: (isize, isize), detected_beacon: (isize, isize)) -> Self {
+        let manhattan_distance = abs_distance(location.0, detected_beacon.0) + abs_distance(location.1, detected_beacon.1);
 
-        output.join("\n")
-    }
-
-    fn get_tile(&self, x: usize, y: usize) -> Tile {
-        self.tiles[x + y * self.size.1]
-    }
-
-    fn new(x_size: usize, y_size: usize, x_offset: isize, y_offset: isize) -> Environment {
         Self {
-            position_offsets: (x_offset, y_offset),
-            size: (x_size, y_size),
-
-            tiles: vec![Tile::default(); x_size * y_size],
+            location,
+            detected_beacon,
+            manhattan_distance,
         }
-    }
-
-    fn set_tile(&mut self, x: usize, y: usize, tile: Tile) {
-        self.tiles[x + y * self.size.1] = tile;
-    }
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct Point {
-    x: isize,
-    y: isize,
-}
-
-impl Point {
-    fn new(x: isize, y: isize) -> Self {
-        Self { x, y }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Tile {
-    Unknown,
-    Beacon,
-    NoBeacon,
-    Sensor,
-}
-
-impl Tile {
-    fn char(&self) -> char {
-        use Tile::*;
-
-        match self {
-            Unknown => '.',
-            Beacon => 'B',
-            NoBeacon => '#',
-            Sensor => 'S',
-        }
-    }
-}
-
-impl Default for Tile {
-    fn default() -> Self {
-        Tile::Unknown
     }
 }
 
 fn parse_environment(data: &[u8]) -> Environment {
     let data = std::str::from_utf8(data).unwrap();
-    let locations: Vec<(Point, Point)> = data.lines().map(|l| parse_line(l)).collect();
+    let sensors: Vec<Sensor> = data.lines().map(|l| parse_line(l)).collect();
 
-    let mut bounds: Option<(Point, Point)> = None;
-
-    for location in locations.iter().map(|loc| [&loc.0, &loc.1]).flatten() {
-        if let Some((ref mut min, ref mut max)) = bounds {
-            min.x = min.x.min(location.x);
-            max.x = max.x.max(location.x);
-
-            min.y = min.y.min(location.y);
-            max.y = max.y.max(location.y);
-        } else {
-            bounds = Some((location.clone(), location.clone()));
-        }
-    }
-
-    let bounds = bounds.unwrap();
-
-    let size_x = (bounds.1.x - bounds.0.x) as usize;
-    let size_y = (bounds.1.y - bounds.0.y) as usize;
-
-    let offset_x = bounds.0.x;
-    let offset_y = bounds.0.y;
-
-    let mut env = Environment::new(size_x, size_y, offset_x, offset_y);
-
-    for (sensor, beacon) in locations.iter() {
-        env.add_location(sensor, beacon);
-    }
-
-    env
+    Environment::new(sensors)
 }
 
-fn parse_line(line: &str) -> (Point, Point) {
+fn parse_line(line: &str) -> Sensor {
     let captures = LINE_MATCH.captures(line).unwrap();
 
-    let sensor = Point::new(captures[1].parse().unwrap(), captures[2].parse().unwrap());
-    let beacon = Point::new(captures[3].parse().unwrap(), captures[4].parse().unwrap());
+    let sensor_loc: (isize, isize) = (captures[1].parse().unwrap(), captures[2].parse().unwrap());
+    let beacon_loc: (isize, isize) = (captures[3].parse().unwrap(), captures[4].parse().unwrap());
 
-    (sensor, beacon)
+    Sensor::new(sensor_loc, beacon_loc)
 }
 
 fn main() {
-    let environment = parse_environment(INPUT_DATA);
-
-    println!("{}", environment.display_string());
+    let _environment = parse_environment(INPUT_DATA);
 }
 
 #[cfg(test)]
@@ -166,26 +77,28 @@ mod tests {
     fn test_line_parsing() {
         let data = std::str::from_utf8(SAMPLE_INPUT).unwrap();
 
-        let locations: Vec<(Point, Point)> = data.lines().map(|l| parse_line(l)).collect();
-        assert_eq!(locations.len(), 14);
+        let sensors: Vec<Sensor> = data.lines().map(|l| parse_line(l)).collect();
+        assert_eq!(sensors.len(), 14);
 
-        let expected_locations = vec![
-            (Point::new(2, 18), Point::new(-2, 15)),
-            (Point::new(9, 16), Point::new(10, 16)),
-            (Point::new(13, 2), Point::new(15, 3)),
-            (Point::new(12, 14), Point::new(10, 16)),
-            (Point::new(10, 20), Point::new(10, 16)),
-            (Point::new(14, 17), Point::new(10, 16)),
-            (Point::new(8, 7), Point::new(2, 10)),
-            (Point::new(2, 0), Point::new(2, 10)),
-            (Point::new(0, 11), Point::new(2, 10)),
-            (Point::new(20, 14), Point::new(25, 17)),
-            (Point::new(17, 20), Point::new(21, 22)),
-            (Point::new(16, 7), Point::new(15, 3)),
-            (Point::new(14, 3), Point::new(15, 3)),
-            (Point::new(20, 1), Point::new(15, 3)),
+        let expected_sensors = vec![
+            Sensor { location: (2, 18), detected_beacon: (-2, 15), manhattan_distance: 7 },
+            Sensor { location: (9, 16), detected_beacon: (10, 16), manhattan_distance: 1 },
+            Sensor { location: (13, 2), detected_beacon: (15, 3), manhattan_distance: 3 },
+            Sensor { location: (12, 14), detected_beacon: (10, 16), manhattan_distance: 4 },
+            Sensor { location: (10, 20), detected_beacon: (10, 16), manhattan_distance: 4 },
+            Sensor { location: (14, 17), detected_beacon: (10, 16), manhattan_distance: 5 },
+            Sensor { location: (8, 7), detected_beacon: (2, 10), manhattan_distance: 9 },
+            Sensor { location: (2, 0), detected_beacon: (2, 10), manhattan_distance: 10 },
+            Sensor { location: (0, 11), detected_beacon: (2, 10), manhattan_distance: 3 },
+            Sensor { location: (20, 14), detected_beacon: (25, 17), manhattan_distance: 8 },
+            Sensor { location: (17, 20), detected_beacon: (21, 22), manhattan_distance: 6 },
+            Sensor { location: (16, 7), detected_beacon: (15, 3), manhattan_distance: 5 },
+            Sensor { location: (14, 3), detected_beacon: (15, 3), manhattan_distance: 1 },
+            Sensor { location: (20, 1), detected_beacon: (15, 3), manhattan_distance: 7 },
         ];
 
-        assert_eq!(locations, expected_locations);
+        for (actual, expected) in sensors.iter().zip(expected_sensors) {
+            assert_eq!(actual, &expected);
+        }
     }
 }
