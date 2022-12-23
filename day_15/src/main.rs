@@ -111,16 +111,23 @@ impl Environment {
                     break;
                 }
 
-                // Multiple sensors may be detecting the same location
-                let specific_detecting_sensors: Vec<&Sensor> = relevant_sensors
-                    .clone()
-                    .filter(|s| s.within_detection_range((search_x, search_y)))
-                    .collect();
-
-                if specific_detecting_sensors.is_empty() {
-                    // No sensors are able to detect this location within our bounds
-                    return Some((search_x, search_y));
+                if relevant_sensors.clone().any(|s| s.within_detection_range((search_x, search_y))) {
+                    search_x += 1;
+                    continue;
                 }
+
+                return Some((search_x, search_y));
+
+                // Multiple sensors may be detecting the same location
+                //let specific_detecting_sensors: Vec<&Sensor> = relevant_sensors
+                //    .clone()
+                //    .filter(|s| s.within_detection_range((search_x, search_y)))
+                //    .collect();
+
+                //if specific_detecting_sensors.is_empty() {
+                //    // No sensors are able to detect this location within our bounds
+                //    return Some((search_x, search_y));
+                //}
 
                 // One or more sensors are able to see this location, we can skip a chunk of
                 // evaluation by figuring out the furthest X coordinate any of this group of
@@ -132,7 +139,6 @@ impl Environment {
                 //    .unwrap();
 
                 //search_x = max_real_detectable + 1;
-                search_x += 1;
             }
         }
 
@@ -259,9 +265,10 @@ fn debug_print(environment: &Environment, bounds: (isize, isize, isize, isize)) 
 fn main() {
     let environment = parse_environment(INPUT_DATA);
 
-    let detectable_positions = environment.detectable_positions_within_row(2_000_000);
-    println!("detectable positions: {detectable_positions}");
+    //let detectable_positions = environment.detectable_positions_within_row(2_000_000);
+    //println!("detectable positions: {detectable_positions}");
 
+    //let possible_beacon_positions = environment.search_within_bounds((0, 0, 4_000_000, 4_000_000));
     let possible_beacon_positions = environment.search_within_bounds((0, 0, 4_000_000, 4));
     println!("unknown beacon location within bounds: {:?}", possible_beacon_positions);
 }
