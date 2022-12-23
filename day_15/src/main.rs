@@ -17,6 +17,33 @@ struct Environment {
 }
 
 impl Environment {
+    /// Automatically create a possible bounding box for the entire map's visibility based on the
+    /// sensor's detection range.
+    fn aabb(&self) -> (isize, isize, isize, isize) {
+        (
+            self.sensors
+                .iter()
+                .map(|s| s.min_x_visible())
+                .min()
+                .unwrap(),
+            self.sensors
+                .iter()
+                .map(|s| s.min_y_visible())
+                .min()
+                .unwrap(),
+            self.sensors
+                .iter()
+                .map(|s| s.max_x_visible())
+                .max()
+                .unwrap(),
+            self.sensors
+                .iter()
+                .map(|s| s.max_y_visible())
+                .max()
+                .unwrap(),
+        )
+    }
+
     fn detectable_positions_within_row(&self, row_coord: isize) -> usize {
         let mut detectable_positions = 0;
 
@@ -38,13 +65,13 @@ impl Environment {
         Self { sensors }
     }
 
-    // This is not a precise method, it is intended to help scope down the range of the X
-    // coordinate to limit the number of spaces that need to be checked. This returns the range
-    // of minimum and maximum X coordinates that any sensor able to see a particular row could
-    // possibly see.
-    //
-    // If the sensor does not exist on the same row as the provided coordinate it, it will not
-    // actually be able to see the minimum and maximum x coordinate returned.
+    /// This is not a precise method, it is intended to help scope down the range of the X
+    /// coordinate to limit the number of spaces that need to be checked. This returns the range of
+    /// minimum and maximum X coordinates that any sensor able to see a particular row could
+    /// possibly see.
+    ///
+    /// If the sensor does not exist on the same row as the provided coordinate it, it will not
+    /// actually be able to see the minimum and maximum x coordinate returned.
     fn relevant_row_range(&self, row_coord: isize) -> Range<isize> {
         let min_x = self
             .sensors_within_range_of_row(row_coord)
@@ -82,16 +109,16 @@ struct Sensor {
 }
 
 impl Sensor {
-    // The absolute minimum y distance between two points is when they are sharing an x coordinate.
-    // This method is used to find only the sensors that are capable of seeing at least one
-    // location in a row.
+    /// The absolute minimum y distance between two points is when they are sharing an x
+    /// coordinate. This method is used to find only the sensors that are capable of seeing at
+    /// least one location in a row.
     fn can_detect_row(&self, row_coord: isize) -> bool {
         self.within_detection_range((self.location.0, row_coord))
     }
 
-    // It's not enough to know the whether a position is detectable by a sensor, we also need to
-    // remove the locations where an existing beacon or sensor is located. This is a helper method
-    // for filtering out those "known locations" when calculating detectable places.
+    /// It's not enough to know the whether a position is detectable by a sensor, we also need to
+    /// remove the locations where an existing beacon or sensor is located. This is a helper method
+    /// for filtering out those "known locations" when calculating detectable places.
     fn known_location(&self, location: (isize, isize)) -> bool {
         self.location == location || self.detected_beacon == location
     }
@@ -100,8 +127,16 @@ impl Sensor {
         self.location.0 + self.beacon_distance as isize
     }
 
+    fn max_y_visible(&self) -> isize {
+        self.location.1 + self.beacon_distance as isize
+    }
+
     fn min_x_visible(&self) -> isize {
         self.location.0 - self.beacon_distance as isize
+    }
+
+    fn min_y_visible(&self) -> isize {
+        self.location.1 - self.beacon_distance as isize
     }
 
     fn new(location: (isize, isize), detected_beacon: (isize, isize)) -> Self {
@@ -127,10 +162,12 @@ fn abs_distance(left: isize, right: isize) -> usize {
 fn debug_print(environment: &Environment) {
     let mut output = String::new();
 
-    for y in -5..=27 {
+    let aabb = environment.aabb();
+
+    for y in std::ops::RangeInclusive::new(aabb.1 - 1, aabb.3 + 1) {
         output.push_str(&format!("{:3} ", y));
 
-        for x in -5..=30 {
+        for x in std::ops::RangeInclusive::new(aabb.0 - 1, aabb.2 + 1) {
             if environment.sensors.iter().any(|s| s.location == (x, y)) {
                 output.push_str("S");
             } else if environment
@@ -160,6 +197,7 @@ fn main() {
     let environment = parse_environment(INPUT_DATA);
     let detectable_positions = environment.detectable_positions_within_row(2_000_000);
     println!("detectable positions: {detectable_positions}");
+    println!("world AABB: {:?}", environment.aabb());
 }
 
 fn manhattan_distance(left: (isize, isize), right: (isize, isize)) -> usize {
@@ -193,6 +231,7 @@ mod tests {
         let environment = parse_environment(SAMPLE_INPUT);
 
         debug_print(&environment);
+        assert!(false);
 
         let relevant_sensor_count = environment.sensors_within_range_of_row(10).count();
         assert_eq!(relevant_sensor_count, 6);
