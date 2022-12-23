@@ -19,6 +19,7 @@ struct Environment {
 impl Environment {
     /// Automatically create a possible bounding box for the entire map's visibility based on the
     /// sensor's detection range.
+    #[cfg(test)]
     fn aabb(&self) -> (isize, isize, isize, isize) {
         (
             self.sensors
@@ -90,10 +91,26 @@ impl Environment {
         }
     }
 
+    fn search_within_bounds(&self, minimum: (isize, isize), maximum: (isize, isize)) -> Vec<(isize, isize)> {
+        let mut possible_positions = vec![];
+
+        for search_y in (minimum.1)..=(maximum.1) {
+            let relevant_sensors = self.sensors_within_range_of_row(search_y);
+
+            for search_x in (minimum.0)..=(maximum.0) {
+                if !relevant_sensors.clone().any(|s| s.within_detection_range((search_x, search_y))) {
+                    possible_positions.push((search_x, search_y));
+                }
+            }
+        }
+
+        possible_positions
+    }
+
     fn sensors_within_range_of_row<'a>(
         &'a self,
         row_coord: isize,
-    ) -> impl Iterator<Item = &'a Sensor> {
+    ) -> impl Clone + Iterator<Item = &'a Sensor> {
         self.sensors
             .iter()
             .filter(move |s| s.can_detect_row(row_coord))
@@ -195,9 +212,12 @@ fn debug_print(environment: &Environment) {
 
 fn main() {
     let environment = parse_environment(INPUT_DATA);
+
     let detectable_positions = environment.detectable_positions_within_row(2_000_000);
     println!("detectable positions: {detectable_positions}");
-    println!("world AABB: {:?}", environment.aabb());
+
+    let possible_beacon_positions = environment.search_within_bounds((0, 0), (4_000_000, 4_000_000));
+    println!("possible beacon locations within bounds: {}", possible_beacon_positions.len());
 }
 
 fn manhattan_distance(left: (isize, isize), right: (isize, isize)) -> usize {
@@ -229,9 +249,7 @@ mod tests {
     #[test]
     fn test_environment_with_sample() {
         let environment = parse_environment(SAMPLE_INPUT);
-
         debug_print(&environment);
-        assert!(false);
 
         let relevant_sensor_count = environment.sensors_within_range_of_row(10).count();
         assert_eq!(relevant_sensor_count, 6);
@@ -241,6 +259,9 @@ mod tests {
 
         let detectable_positions = environment.detectable_positions_within_row(10);
         assert_eq!(detectable_positions, 26);
+
+        let possible_beacon_positions = environment.search_within_bounds((0, 0), (20, 20));
+        assert_eq!(possible_beacon_positions.len(), 1);
     }
 
     #[test]
