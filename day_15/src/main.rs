@@ -94,7 +94,9 @@ fn abs_distance(left: isize, right: isize) -> usize {
 }
 
 fn main() {
-    let _environment = parse_environment(INPUT_DATA);
+    let environment = parse_environment(INPUT_DATA);
+    let detectable_positions = environment.detectable_positions_within_row(10);
+    println!("detectable positions: {detectable_positions}");
 }
 
 fn manhattan_distance(left: (isize, isize), right: (isize, isize)) -> usize {
