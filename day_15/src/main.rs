@@ -53,7 +53,7 @@ impl Environment {
 
             if self
                 .sensors_within_range_of_row(row_coord)
-                .any(|s| s.within_detection_range(tgt_coord) && !s.known_location(tgt_coord))
+                .any(|s| s.detectable_and_empty(tgt_coord))
             {
                 detectable_positions += 1;
             }
@@ -91,20 +91,52 @@ impl Environment {
         }
     }
 
-    fn search_within_bounds(&self, minimum: (isize, isize), maximum: (isize, isize)) -> Vec<(isize, isize)> {
-        let mut possible_positions = vec![];
+    fn search_within_bounds(&self, bounds: (isize, isize, isize, isize)) -> Option<(isize, isize)> {
+        let minimum = (bounds.0, bounds.1);
+        let maximum = (bounds.2, bounds.3);
 
         for search_y in (minimum.1)..=(maximum.1) {
             let relevant_sensors = self.sensors_within_range_of_row(search_y);
 
-            for search_x in (minimum.0)..=(maximum.0) {
-                if !relevant_sensors.clone().any(|s| s.within_detection_range((search_x, search_y))) {
-                    possible_positions.push((search_x, search_y));
+            // We know the sensor is within the bounds of a detection range on our row, so
+            // constrain our search to the min / max on the row.
+            let min_detectable_x = relevant_sensors.clone().map(|s| s.min_x_visible()).min().unwrap();
+            let max_detectable_x = relevant_sensors.clone().map(|s| s.max_x_visible()).max().unwrap();
+
+            let mut search_x = minimum.0.max(min_detectable_x);
+            let max_search_x = maximum.0.min(max_detectable_x);
+
+            loop {
+                if search_x > max_search_x {
+                    break;
                 }
+
+                // Multiple sensors may be detecting the same location
+                let specific_detecting_sensors: Vec<&Sensor> = relevant_sensors
+                    .clone()
+                    .filter(|s| s.within_detection_range((search_x, search_y)))
+                    .collect();
+
+                if specific_detecting_sensors.is_empty() {
+                    // No sensors are able to detect this location within our bounds
+                    return Some((search_x, search_y));
+                }
+
+                // One or more sensors are able to see this location, we can skip a chunk of
+                // evaluation by figuring out the furthest X coordinate any of this group of
+                // sensors can see and immediately skipping to it
+                //let max_real_detectable = specific_detecting_sensors
+                //    .iter()
+                //    .map(|s| s.max_x_visible_on_row(search_y))
+                //    .max()
+                //    .unwrap();
+
+                //search_x = max_real_detectable + 1;
+                search_x += 1;
             }
         }
 
-        possible_positions
+        None
     }
 
     fn sensors_within_range_of_row<'a>(
@@ -134,14 +166,28 @@ impl Sensor {
     }
 
     /// It's not enough to know the whether a position is detectable by a sensor, we also need to
-    /// remove the locations where an existing beacon or sensor is located. This is a helper method
-    /// for filtering out those "known locations" when calculating detectable places.
+    /// remove the locations where an existing beacon or sensor is located.
+    fn detectable_and_empty(&self, location: (isize, isize)) -> bool {
+        self.within_detection_range(location) && !self.known_location(location)
+    }
+
     fn known_location(&self, location: (isize, isize)) -> bool {
         self.location == location || self.detected_beacon == location
     }
 
     fn max_x_visible(&self) -> isize {
         self.location.0 + self.beacon_distance as isize
+    }
+
+    fn max_x_visible_on_row(&self, row: isize) -> Option<isize> {
+        let y_offset = abs_distance(self.location.1, row);
+
+        // the provided row is outside of our detection range, we can't see anything
+        if self.beacon_distance > y_offset {
+            return None;
+        }
+
+        Some(self.beacon_distance as isize + y_offset as isize)
     }
 
     fn max_y_visible(&self) -> isize {
@@ -176,15 +222,15 @@ fn abs_distance(left: isize, right: isize) -> usize {
 }
 
 #[cfg(test)]
-fn debug_print(environment: &Environment) {
+fn debug_print(environment: &Environment, bounds: (isize, isize, isize, isize)) {
     let mut output = String::new();
 
-    let aabb = environment.aabb();
+    println!("bounds: {:?}", bounds);
 
-    for y in std::ops::RangeInclusive::new(aabb.1 - 1, aabb.3 + 1) {
+    for y in std::ops::RangeInclusive::new(bounds.1 - 1, bounds.3 + 1) {
         output.push_str(&format!("{:3} ", y));
 
-        for x in std::ops::RangeInclusive::new(aabb.0 - 1, aabb.2 + 1) {
+        for x in std::ops::RangeInclusive::new(bounds.0 - 1, bounds.2 + 1) {
             if environment.sensors.iter().any(|s| s.location == (x, y)) {
                 output.push_str("S");
             } else if environment
@@ -216,8 +262,8 @@ fn main() {
     let detectable_positions = environment.detectable_positions_within_row(2_000_000);
     println!("detectable positions: {detectable_positions}");
 
-    let possible_beacon_positions = environment.search_within_bounds((0, 0), (4_000_000, 4_000_000));
-    println!("possible beacon locations within bounds: {}", possible_beacon_positions.len());
+    let possible_beacon_positions = environment.search_within_bounds((0, 0, 4_000_000, 4));
+    println!("unknown beacon location within bounds: {:?}", possible_beacon_positions);
 }
 
 fn manhattan_distance(left: (isize, isize), right: (isize, isize)) -> usize {
@@ -249,7 +295,7 @@ mod tests {
     #[test]
     fn test_environment_with_sample() {
         let environment = parse_environment(SAMPLE_INPUT);
-        debug_print(&environment);
+        debug_print(&environment, environment.aabb());
 
         let relevant_sensor_count = environment.sensors_within_range_of_row(10).count();
         assert_eq!(relevant_sensor_count, 6);
@@ -260,8 +306,13 @@ mod tests {
         let detectable_positions = environment.detectable_positions_within_row(10);
         assert_eq!(detectable_positions, 26);
 
-        let possible_beacon_positions = environment.search_within_bounds((0, 0), (20, 20));
-        assert_eq!(possible_beacon_positions.len(), 1);
+        let bounds = (0, 0, 20, 20);
+        let unknown_beacon_position = environment.search_within_bounds(bounds).unwrap();
+
+        debug_print(&environment, bounds);
+        debug_print(&environment, (unknown_beacon_position.0, unknown_beacon_position.1, unknown_beacon_position.0, unknown_beacon_position.1));
+
+        assert_eq!(unknown_beacon_position, (14, 11));
     }
 
     #[test]
