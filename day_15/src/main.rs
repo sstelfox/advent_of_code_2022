@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use lazy_static::lazy_static;
 use regex::Regex;
 
@@ -16,10 +18,36 @@ impl Environment {
     fn new(sensors: Vec<Sensor>) -> Environment {
         Self { sensors }
     }
-}
 
-fn abs_distance(left: isize, right: isize) -> isize {
-    (left - right).abs()
+    fn detectable_positions_within_row(&self, row_coord: isize) -> usize {
+        let mut detectable_positions = 0;
+
+        for col_coord in self.relevant_row_range(row_coord) {
+            if self.sensors_within_range_of_row(row_coord).any(|s| s.within_detection_range((col_coord, row_coord))) {
+                detectable_positions += 1;
+            }
+        }
+
+        detectable_positions
+    }
+
+    // This is not a precise method, it is intended to help scope down the range of the X
+    // coordinate to limit the number of spaces that need to be checked. This returns the range
+    // of minimum and maximum X coordinates that any sensor able to see a particular row could
+    // possibly see.
+    //
+    // If the sensor does not exist on the same row as the provided coordinate it, it will not
+    // actually be able to see the minimum and maximum x coordinate returned.
+    fn relevant_row_range(&self, row_coord: isize) -> Range<isize> {
+        let min_x = self.sensors_within_range_of_row(row_coord).map(|s| s.min_x_visible()).min().unwrap();
+        let max_x = self.sensors_within_range_of_row(row_coord).map(|s| s.max_x_visible()).max().unwrap();
+
+        Range { start: min_x, end: max_x }
+    }
+
+    fn sensors_within_range_of_row<'a>(&'a self, row_coord: isize) -> impl Iterator<Item = &'a Sensor> {
+        self.sensors.iter().filter(move |s| s.can_detect_row(row_coord))
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -27,19 +55,50 @@ struct Sensor {
     location: (isize, isize),
 
     detected_beacon: (isize, isize),
-    manhattan_distance: isize,
+    beacon_distance: usize,
 }
 
 impl Sensor {
+    // The absolute minimum y distance between two points is when they are sharing an x coordinate.
+    // This method is used to find only the sensors that are capable of seeing at least one
+    // location in a row.
+    fn can_detect_row(&self, row_coord: isize) -> bool {
+        self.within_detection_range((self.location.0, row_coord))
+    }
+
+    fn max_x_visible(&self) -> isize {
+        self.location.0 + self.beacon_distance as isize
+    }
+
+    fn min_x_visible(&self) -> isize {
+        self.location.0 - self.beacon_distance as isize
+    }
+
     fn new(location: (isize, isize), detected_beacon: (isize, isize)) -> Self {
-        let manhattan_distance = abs_distance(location.0, detected_beacon.0) + abs_distance(location.1, detected_beacon.1);
+        let beacon_distance = manhattan_distance(location, detected_beacon);
 
         Self {
             location,
             detected_beacon,
-            manhattan_distance,
+            beacon_distance,
         }
     }
+
+    fn within_detection_range(&self, other_location: (isize, isize)) -> bool {
+        manhattan_distance(self.location, other_location) <= self.beacon_distance
+    }
+}
+
+fn abs_distance(left: isize, right: isize) -> usize {
+    (left - right).abs() as usize
+}
+
+fn main() {
+    let _environment = parse_environment(INPUT_DATA);
+}
+
+fn manhattan_distance(left: (isize, isize), right: (isize, isize)) -> usize {
+    abs_distance(left.0, right.0) + abs_distance(left.1, right.1)
 }
 
 fn parse_environment(data: &[u8]) -> Environment {
@@ -58,10 +117,6 @@ fn parse_line(line: &str) -> Sensor {
     Sensor::new(sensor_loc, beacon_loc)
 }
 
-fn main() {
-    let _environment = parse_environment(INPUT_DATA);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -69,8 +124,17 @@ mod tests {
     const SAMPLE_INPUT: &'static [u8] = include_bytes!("../data/sample");
 
     #[test]
-    fn test_environment_generation() {
-        let _environment = parse_environment(SAMPLE_INPUT);
+    fn test_environment_with_sample() {
+        let environment = parse_environment(SAMPLE_INPUT);
+
+        let relevant_sensor_count = environment.sensors_within_range_of_row(10).count();
+        assert_eq!(relevant_sensor_count, 6);
+
+        let relevant_range = environment.relevant_row_range(10);
+        assert_eq!(relevant_range, -8..28);
+
+        let detectable_positions = environment.detectable_positions_within_row(10);
+        assert_eq!(detectable_positions, 26);
     }
 
     #[test]
@@ -81,24 +145,47 @@ mod tests {
         assert_eq!(sensors.len(), 14);
 
         let expected_sensors = vec![
-            Sensor { location: (2, 18), detected_beacon: (-2, 15), manhattan_distance: 7 },
-            Sensor { location: (9, 16), detected_beacon: (10, 16), manhattan_distance: 1 },
-            Sensor { location: (13, 2), detected_beacon: (15, 3), manhattan_distance: 3 },
-            Sensor { location: (12, 14), detected_beacon: (10, 16), manhattan_distance: 4 },
-            Sensor { location: (10, 20), detected_beacon: (10, 16), manhattan_distance: 4 },
-            Sensor { location: (14, 17), detected_beacon: (10, 16), manhattan_distance: 5 },
-            Sensor { location: (8, 7), detected_beacon: (2, 10), manhattan_distance: 9 },
-            Sensor { location: (2, 0), detected_beacon: (2, 10), manhattan_distance: 10 },
-            Sensor { location: (0, 11), detected_beacon: (2, 10), manhattan_distance: 3 },
-            Sensor { location: (20, 14), detected_beacon: (25, 17), manhattan_distance: 8 },
-            Sensor { location: (17, 20), detected_beacon: (21, 22), manhattan_distance: 6 },
-            Sensor { location: (16, 7), detected_beacon: (15, 3), manhattan_distance: 5 },
-            Sensor { location: (14, 3), detected_beacon: (15, 3), manhattan_distance: 1 },
-            Sensor { location: (20, 1), detected_beacon: (15, 3), manhattan_distance: 7 },
+            Sensor { location: (2, 18), detected_beacon: (-2, 15), beacon_distance: 7 },
+            Sensor { location: (9, 16), detected_beacon: (10, 16), beacon_distance: 1 },
+            Sensor { location: (13, 2), detected_beacon: (15, 3), beacon_distance: 3 },
+            Sensor { location: (12, 14), detected_beacon: (10, 16), beacon_distance: 4 },
+            Sensor { location: (10, 20), detected_beacon: (10, 16), beacon_distance: 4 },
+            Sensor { location: (14, 17), detected_beacon: (10, 16), beacon_distance: 5 },
+            Sensor { location: (8, 7), detected_beacon: (2, 10), beacon_distance: 9 },
+            Sensor { location: (2, 0), detected_beacon: (2, 10), beacon_distance: 10 },
+            Sensor { location: (0, 11), detected_beacon: (2, 10), beacon_distance: 3 },
+            Sensor { location: (20, 14), detected_beacon: (25, 17), beacon_distance: 8 },
+            Sensor { location: (17, 20), detected_beacon: (21, 22), beacon_distance: 6 },
+            Sensor { location: (16, 7), detected_beacon: (15, 3), beacon_distance: 5 },
+            Sensor { location: (14, 3), detected_beacon: (15, 3), beacon_distance: 1 },
+            Sensor { location: (20, 1), detected_beacon: (15, 3), beacon_distance: 7 },
         ];
 
         for (actual, expected) in sensors.iter().zip(expected_sensors) {
             assert_eq!(actual, &expected);
         }
+    }
+
+    #[test]
+    fn test_ranging_functions() {
+        assert_eq!(abs_distance(0, 5), 5);
+        assert_eq!(abs_distance(-20, -20), 0);
+        assert_eq!(abs_distance(-10, 10), 20);
+
+        assert_eq!(manhattan_distance((0, 0), (0, 0)), 0);
+        assert_eq!(manhattan_distance((-10, 0), (0, 10)), 20);
+        assert_eq!(manhattan_distance((0, 5), (5, 5)), 5);
+
+        let sensor = Sensor::new((0, 0), (5, 5));
+
+        assert!(sensor.can_detect_row(0));
+        assert!(sensor.can_detect_row(10));
+        assert!(sensor.can_detect_row(-10));
+
+        assert!(!sensor.can_detect_row(11));
+        assert!(!sensor.can_detect_row(-11));
+
+        assert_eq!(sensor.min_x_visible(), -10);
+        assert_eq!(sensor.max_x_visible(), 10);
     }
 }
