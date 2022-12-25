@@ -103,43 +103,45 @@ impl Environment {
             let min_detectable_x = relevant_sensors.clone().map(|s| s.min_x_visible()).min().unwrap();
             let max_detectable_x = relevant_sensors.clone().map(|s| s.max_x_visible()).max().unwrap();
 
-            let mut search_x = minimum.0.max(min_detectable_x);
+            let min_search_x = minimum.0.max(min_detectable_x);
             let max_search_x = maximum.0.min(max_detectable_x);
 
-            loop {
-                if search_x > max_search_x {
-                    break;
-                }
-
+            for search_x in min_search_x..=max_search_x {
                 if relevant_sensors.clone().any(|s| s.within_detection_range((search_x, search_y))) {
-                    search_x += 1;
                     continue;
                 }
 
                 return Some((search_x, search_y));
-
-                // Multiple sensors may be detecting the same location
-                //let specific_detecting_sensors: Vec<&Sensor> = relevant_sensors
-                //    .clone()
-                //    .filter(|s| s.within_detection_range((search_x, search_y)))
-                //    .collect();
-
-                //if specific_detecting_sensors.is_empty() {
-                //    // No sensors are able to detect this location within our bounds
-                //    return Some((search_x, search_y));
-                //}
-
-                // One or more sensors are able to see this location, we can skip a chunk of
-                // evaluation by figuring out the furthest X coordinate any of this group of
-                // sensors can see and immediately skipping to it
-                //let max_real_detectable = specific_detecting_sensors
-                //    .iter()
-                //    .map(|s| s.max_x_visible_on_row(search_y))
-                //    .max()
-                //    .unwrap();
-
-                //search_x = max_real_detectable + 1;
             }
+
+            //loop {
+            //    if search_x > max_search_x {
+            //        break;
+            //    }
+
+
+            //    // Multiple sensors may be detecting the same location
+            //    //let specific_detecting_sensors: Vec<&Sensor> = relevant_sensors
+            //    //    .clone()
+            //    //    .filter(|s| s.within_detection_range((search_x, search_y)))
+            //    //    .collect();
+
+            //    //if specific_detecting_sensors.is_empty() {
+            //    //    // No sensors are able to detect this location within our bounds
+            //    //    return Some((search_x, search_y));
+            //    //}
+
+            //    // One or more sensors are able to see this location, we can skip a chunk of
+            //    // evaluation by figuring out the furthest X coordinate any of this group of
+            //    // sensors can see and immediately skipping to it
+            //    //let max_real_detectable = specific_detecting_sensors
+            //    //    .iter()
+            //    //    .map(|s| s.max_x_visible_on_row(search_y))
+            //    //    .max()
+            //    //    .unwrap();
+
+            //    //search_x = max_real_detectable + 1;
+            //}
         }
 
         None
@@ -265,12 +267,16 @@ fn debug_print(environment: &Environment, bounds: (isize, isize, isize, isize)) 
 fn main() {
     let environment = parse_environment(INPUT_DATA);
 
-    //let detectable_positions = environment.detectable_positions_within_row(2_000_000);
-    //println!("detectable positions: {detectable_positions}");
+    let detectable_positions = environment.detectable_positions_within_row(2_000_000);
+    println!("detectable positions: {detectable_positions}");
 
-    //let possible_beacon_positions = environment.search_within_bounds((0, 0, 4_000_000, 4_000_000));
-    let possible_beacon_positions = environment.search_within_bounds((0, 0, 4_000_000, 4));
-    println!("unknown beacon location within bounds: {:?}", possible_beacon_positions);
+    // I did search the entire space which took about 18 hours hahah, I was going to be away from
+    // my computer anyway so I couldn't spend more time optimizing it...
+    //if let Some(location) = environment.search_within_bounds((0, 0, 4_000_000, 4_000_000)) {
+    if let Some(location) = environment.search_within_bounds((3_150_000, 3_360_000, 3_160_000, 3_370_000)) {
+        let frequency = (location.0 * 4_000_000) + location.1;
+        println!("beacon frequency found: {frequency}");
+    }
 }
 
 fn manhattan_distance(left: (isize, isize), right: (isize, isize)) -> usize {

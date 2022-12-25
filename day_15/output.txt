@@ -1,0 +1,1 @@
+output: unknown beacon location within bounds: Some((3157535, 3363767))
